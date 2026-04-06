@@ -1,4 +1,5 @@
-python-telegram-bot==21.10
+python-telegram-bot[webhooks]
+requests
 requests
 httpx
 anyio
