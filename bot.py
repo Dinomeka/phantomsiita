@@ -441,11 +441,11 @@ def run_healthcheck_server():
     server.serve_forever()
 
 
-# ... (весь ваш предыдущий код с функциями и обработчиками остается без изменений) ...
-
-def main():
-    # Настройка таймаутов для работы с большими файлами
+async def main():
+    # 1. Настройка таймаутов
     req = HTTPXRequest(connect_timeout=60.0, read_timeout=300.0, write_timeout=300.0)
+    
+    # 2. Инициализация приложения
     app = Application.builder().token(TOKEN).request(req).build()
     
     app.add_error_handler(error_handler)
@@ -453,23 +453,49 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
-    # Настройки для Render
-    # Render автоматически передает PORT. Если его нет, используем 8000
+    # 3. Параметры порта и URL
     PORT = int(os.environ.get("PORT", 8000))
-    # URL вашего приложения на Render (например, https://my-bot.onrender.com)
     WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 
     if WEBHOOK_URL:
-        logger.info(f"Запуск в режиме WEBHOOK на порту {PORT}")
-        app.run_webhook(
+        # Убедимся, что в URL нет лишнего слеша в конце
+        base_url = WEBHOOK_URL.rstrip('/')
+        
+        logger.info(f"Запуск вебхука на порту {PORT}. URL: {base_url}/{TOKEN}")
+        
+        # Настройка и запуск через асинхронный контекст
+        await app.initialize()
+        await app.updater.start_webhook(
             listen="0.0.0.0",
             port=PORT,
-            url_path=TOKEN, # Скрытый путь (используем токен для безопасности)
-            webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+            url_path=TOKEN,
+            webhook_url=f"{base_url}/{TOKEN}"
         )
+        await app.start()
+        
+        # Бесконечный цикл, чтобы бот не выключался
+        # В 2026 году и Python 3.14 это самый надежный способ держать асинхронное приложение
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        except (KeyboardInterrupt, SystemExit):
+            await app.stop()
+            await app.updater.stop()
     else:
-        logger.info("Запуск в режиме POLLING")
-        app.run_polling()
+        logger.info("WEBHOOK_URL не найден, запускаю polling...")
+        # Для локального теста polling тоже лучше запускать так в новых версиях
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling()
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        except (KeyboardInterrupt, SystemExit):
+            await app.stop()
 
 if __name__ == "__main__":
-    main()
+    # Вместо простого main() используем asyncio.run
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Бот остановлен.")
