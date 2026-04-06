@@ -1,0 +1,10 @@
+python-telegram-bot==21.10
+requests
+httpx
+anyio
+certifi
+httpcore
+h11
+idna
+sniffio
+typing_extensions
