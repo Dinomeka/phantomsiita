@@ -4,6 +4,7 @@ import re
 import os
 import logging
 import asyncio
+import signal
 import requests
 import html
 
