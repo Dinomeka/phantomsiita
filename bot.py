@@ -442,7 +442,7 @@ def run_healthcheck_server():
     server.serve_forever()
 
 
-async def main():
+def main():
     # 1. Настройка таймаутов
     req = HTTPXRequest(connect_timeout=60.0, read_timeout=300.0, write_timeout=300.0)
     
@@ -455,48 +455,25 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     # 3. Параметры порта и URL
-    PORT = int(os.environ.get("PORT", 8000))
+    PORT = int(os.environ.get("PORT", 10000)) # Render дает порт 10000 по умолчанию
     WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 
     if WEBHOOK_URL:
-        # Убедимся, что в URL нет лишнего слеша в конце
         base_url = WEBHOOK_URL.rstrip('/')
-        
         logger.info(f"Запуск вебхука на порту {PORT}. URL: {base_url}/{TOKEN}")
         
-        # Настройка и запуск через асинхронный контекст
-        await app.initialize()
-        await app.updater.start_webhook(
+        # В версии 20.x+ метод run_webhook сам создает и управляет asyncio loop
+        app.run_webhook(
             listen="0.0.0.0",
             port=PORT,
             url_path=TOKEN,
-            webhook_url=f"{base_url}/{TOKEN}"
+            webhook_url=f"{base_url}/{TOKEN}",
+            drop_pending_updates=True
         )
-        await app.start()
-        
-        # Бесконечный цикл, чтобы бот не выключался
-        # В 2026 году и Python 3.14 это самый надежный способ держать асинхронное приложение
-        try:
-            while True:
-                await asyncio.sleep(3600)
-        except (KeyboardInterrupt, SystemExit):
-            await app.stop()
-            await app.updater.stop()
     else:
         logger.info("WEBHOOK_URL не найден, запускаю polling...")
-        # Для локального теста polling тоже лучше запускать так в новых версиях
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling()
-        try:
-            while True:
-                await asyncio.sleep(3600)
-        except (KeyboardInterrupt, SystemExit):
-            await app.stop()
+        app.run_polling()
 
 if __name__ == "__main__":
-    # Вместо простого main() используем asyncio.run
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Бот остановлен.")
+    main()
+
