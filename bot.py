@@ -381,22 +381,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if res: await process_file(query, res[0][0], res[0][1], context)
 
     elif data.startswith("perf_"):
-        parts = data.split("_")
-        t_code, s_id, e_id = parts[1], parts[2], parts[3]
-        c_type = 'original' if t_code == 'o' else 'cover'
+    parts = data.split("_")
+    t_code, s_id, e_id = parts[1], parts[2], parts[3]
+    c_type = 'original' if t_code == 'o' else 'cover'
+    
+    files = get_performance_files(s_id, e_id, c_type)
+    kb = []
+    yt_link = None
+    for f in files:
+        label = "🎧 MP3" if f[1].lower() == "mp3" else "📹 MP4"
+        kb.append([InlineKeyboardButton(label, callback_data=f"pf_{f[0]}")])
+        if f[3] and str(f[3]).strip() not in ["", "-"]:
+            yt_link = f[3]
+
+    if yt_link:
+        kb.insert(0, [InlineKeyboardButton("▶ Смотреть выступление", url=yt_link)])
         
-        files = get_performance_files(s_id, e_id, c_type)
-        kb = []
-        yt_link = None
-        for f in files:
-            label = "🎧 MP3" if f[1].lower() == "mp3" else "📹 MP4"
-            kb.append([InlineKeyboardButton(label, callback_data=f"pf_{f[0]}")])
-            if f[3] and str(f[3]).strip() not in ["", "-"]: yt_link = f[3]
-
-        if yt_link:
-            kb.insert(0, [InlineKeyboardButton("▶ Смотреть выступление", url=yt_link)])
-
-        await query.edit_message_text(f"Выберите формат:", reply_markup=InlineKeyboardMarkup(kb))
+    await query.message.reply_text("Выберите формат:", reply_markup=InlineKeyboardMarkup(kb))
 
 async def process_file(query, link, fmt, context):
     fmt = (fmt or "mp4").lower().strip()
@@ -428,19 +429,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
-
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-def run_healthcheck_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    server.serve_forever()
-
 
 def main():
     # 1. Настройка таймаутов
