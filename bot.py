@@ -441,28 +441,34 @@ def run_healthcheck_server():
     server.serve_forever()
 
 
+# ... (весь ваш предыдущий код с функциями и обработчиками остается без изменений) ...
+
 def main():
+    # Настройка таймаутов для работы с большими файлами
     req = HTTPXRequest(connect_timeout=60.0, read_timeout=300.0, write_timeout=300.0)
     app = Application.builder().token(TOKEN).request(req).build()
-
+    
     app.add_error_handler(error_handler)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
-    webhook = os.environ.get('WEBHOOK_URL')
+    # Настройки для Render
+    # Render автоматически передает PORT. Если его нет, используем 8000
+    PORT = int(os.environ.get("PORT", 8000))
+    # URL вашего приложения на Render (например, https://my-bot.onrender.com)
+    WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 
-    if webhook:
-        # Запускаем healthcheck сервер для UptimeRobot
-        threading.Thread(target=run_healthcheck_server).start()
-
+    if WEBHOOK_URL:
+        logger.info(f"Запуск в режиме WEBHOOK на порту {PORT}")
         app.run_webhook(
             listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 8080)),
-            url_path=TOKEN,
-            webhook_url=f"{webhook}/{TOKEN}"
+            port=PORT,
+            url_path=TOKEN, # Скрытый путь (используем токен для безопасности)
+            webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
         )
     else:
+        logger.info("Запуск в режиме POLLING")
         app.run_polling()
 
 if __name__ == "__main__":
